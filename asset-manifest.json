@@ -1,7 +1,7 @@
 {
   "files": {
     "main.css": "/stravita-react/static/css/main.b4fd77ea.css",
-    "main.js": "/stravita-react/static/js/main.d7d92626.js",
+    "main.js": "/stravita-react/static/js/main.3c584ca0.js",
     "static/media/inter-latin-ext-600-normal.woff": "/stravita-react/static/media/inter-latin-ext-600-normal.4d0d5017d71ea1750fc1.woff",
     "static/media/inter-latin-ext-700-normal.woff": "/stravita-react/static/media/inter-latin-ext-700-normal.d4a91814dd3f1e022ab1.woff",
     "static/media/inter-latin-ext-300-normal.woff": "/stravita-react/static/media/inter-latin-ext-300-normal.8eeafc82bf1e3850a262.woff",
@@ -74,10 +74,10 @@
     "static/media/inter-vietnamese-400-normal.woff2": "/stravita-react/static/media/inter-vietnamese-400-normal.44c9df135eec470b0ab6.woff2",
     "index.html": "/stravita-react/index.html",
     "main.b4fd77ea.css.map": "/stravita-react/static/css/main.b4fd77ea.css.map",
-    "main.d7d92626.js.map": "/stravita-react/static/js/main.d7d92626.js.map"
+    "main.3c584ca0.js.map": "/stravita-react/static/js/main.3c584ca0.js.map"
   },
   "entrypoints": [
     "static/css/main.b4fd77ea.css",
-    "static/js/main.d7d92626.js"
+    "static/js/main.3c584ca0.js"
   ]
 }
