@@ -1,0 +1,2 @@
+"use strict";(self.webpackChunkstravita_react=self.webpackChunkstravita_react||[]).push([[484],{6484(s,a,e){e.d(a,{SplashScreenWeb:()=>t});var c=e(5403);class t extends c.E_{async show(s){}async hide(s){}}}}]);
+//# sourceMappingURL=484.2956d6eb.chunk.js.map
