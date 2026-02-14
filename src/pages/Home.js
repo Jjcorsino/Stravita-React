@@ -142,7 +142,7 @@ const Home = () => {
           Actividades recientes
         </Typography>
         <Button size="small" onClick={() => navigate('/statistics')}>
-          Ver todo
+          Ver estadisticas
         </Button>
       </Box>
 
@@ -166,8 +166,8 @@ const Home = () => {
                     {getActivityIcon(training.type)}
                   </Avatar>
                   <Box>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 600, textTransform: 'capitalize' }}>
-                      {training.type === 'mtb' ? 'MTB' : training.type}
+                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                      {training.title || `${training.type.charAt(0).toUpperCase() + training.type.slice(1)}`}
                     </Typography>
                     <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                       <CalendarToday sx={{ fontSize: 14 }} />

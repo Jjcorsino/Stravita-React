@@ -248,28 +248,50 @@ const TrainingDetail = () => {
       </Card>
 
       {/* Cabecera de actividad */}
-      <Card sx={{ mb: 2 }}>
-        <CardContent>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-            <Avatar sx={{ bgcolor: `${getActivityColor(training.type)}20`, width: 56, height: 56 }}>
-              {getActivityIcon(training.type)}
-            </Avatar>
-            <Box>
-              <Typography variant="h5" sx={{ fontWeight: 700, textTransform: 'capitalize' }}>
-                {training.type === 'mtb' ? 'MTB' : training.type}
+      <Card sx={{ mb: 3, borderRadius: 3, overflow: 'hidden' }}>
+        <CardContent sx={{ pb: 2 }}>
+          {/* Título principal + emoji (grande y destacado) */}
+          <Typography 
+            variant="h4" 
+            component="h1" 
+            sx={{ 
+              fontWeight: 800, 
+              mb: 1.5,
+              lineHeight: 1.2,
+              letterSpacing: '-0.5px'
+            }}
+          >
+            {training.title}
+          </Typography>
+
+          {/* Tipo + fecha + horario (más pequeño, secundario) */}
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+            {/* Tipo de actividad (capitalizado) */}
+            <Typography 
+              variant="subtitle1" 
+              sx={{ 
+                fontWeight: 600, 
+                color: 'primary.main',
+                textTransform: 'capitalize'
+              }}
+            >
+              {training.type === 'mtb' ? 'MTB' : training.type}
+            </Typography>
+
+            {/* Fecha */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <CalendarToday sx={{ fontSize: 16, color: 'text.secondary' }} />
+              <Typography variant="body2" color="text.secondary">
+                {format(new Date(training.date), "EEEE d 'de' MMMM yyyy", { locale: es })}
               </Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <CalendarToday sx={{ fontSize: 16, color: 'text.secondary' }} />
-                <Typography variant="body2" color="text.secondary">
-                  {format(new Date(training.date), "EEEE, d 'de' MMMM yyyy", { locale: es })}
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
-                <AccessTime sx={{ fontSize: 16, color: 'text.secondary' }} />
-                <Typography variant="body2" color="text.secondary">
-                  {training.startTime} - {training.endTime}
-                </Typography>
-              </Box>
+            </Box>
+
+            {/* Horario */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <AccessTime sx={{ fontSize: 16, color: 'text.secondary' }} />
+              <Typography variant="body2" color="text.secondary">
+                {training.startTime} – {training.endTime}
+              </Typography>
             </Box>
           </Box>
         </CardContent>

@@ -264,7 +264,7 @@ const Training = () => {
     const MIN_TRACK_SPEED = limits.minTrack;
     const MAX_VALID_SPEED = limits.max;
     const currentAccuracyThreshold = initialStabilizationPassedRef.current ? MIN_ACCURACY : STABILIZATION_ACCURACY;
-    
+
     // 1. FILTRO DE PRECISIÓN (siempre se aplica)
      if (location.accuracy > currentAccuracyThreshold) {
       console.log(`📍 GPS impreciso: ${location.accuracy.toFixed(0)}m (umbral: ${currentAccuracyThreshold}m)`);
@@ -558,8 +558,37 @@ const Training = () => {
     });
   }
 
+  const getTimeOfDay = (date) => {
+  const hour = date.getHours();
+
+    if (hour >= 5 && hour < 12)  return { text: "mañana", emoji: "🌅" };
+    if (hour >= 12 && hour < 18) return { text: "tarde",   emoji: "☀️" };
+    if (hour >= 18 && hour <= 23) return { text: "noche",  emoji: "🌙" };
+    return { text: "madrugada", emoji: "🌌" }; // 00:00–04:59
+  };
+
+  const getActivityDisplay = (type) => {
+    switch (type) {
+      case 'caminar':  return { name: 'caminata', emoji: '🚶‍♂️' };
+      case 'ciclismo': return { name: 'bici',   emoji: '🚴‍♂️' };
+      case 'mtb':      return { name: 'Downhill',      emoji: '🚵‍♂️' };
+      default:         return { name: type,       emoji: '🏃' };
+    }
+  };
+
+  const timeInfo = getTimeOfDay(trainingData.startTime);
+  const activityInfo = getActivityDisplay(trainingData.type);
+
+  // Opción A: "Caminata por la mañana" + emoji al principio
+  // const autoTitle = `${activityInfo.emoji} ${activityInfo.name.charAt(0).toUpperCase() + activityInfo.name.slice(1)} por la ${timeInfo.text}`;
+
+  // Opción B: "Tarde de MTB" (más corta y directa, muy común en apps)
+  const autoTitle = `${timeInfo.emoji} ${timeInfo.text.charAt(0).toUpperCase() + timeInfo.text.slice(1)} de ${activityInfo.name}`;
+
+
   const newTraining = {
     id: Date.now(),
+    title: autoTitle,
     type: trainingData.type,
     date: trainingData.startTime.toISOString(),
     startTime: trainingData.startTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
