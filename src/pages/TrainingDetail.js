@@ -197,15 +197,29 @@ const TrainingDetail = () => {
 
   // Función para compartir
   const handleShare = async () => {
-    try {
-      await Share.share({
-        title: 'Mi entrenamiento en DropZone',
-        text: `Acabo de completar ${training.distance.toFixed(2)} km en ${training.type} con un ritmo de ${training.avgPace}. ¡#DropZoneApp!`,
-        dialogTitle: 'Compartir entrenamiento',
-      });
-    } catch (error) {
-      console.error('Error al compartir:', error);
-    }
+    const paceStr = training.avgPace ? `${training.avgPace}/km` : '';
+    const caloriesStr = training.calories ? `${training.calories} kcal` : '';
+
+    const lines = [
+      training.title || `${training.type.charAt(0).toUpperCase() + training.type.slice(1)}`,
+      '',
+      `📏 ${training.distance.toFixed(1)} km`,
+      `⏱️  ${formatTime(training.movingTime)}`,
+      training.elevationGain > 0 ? `⛰️  +${Math.round(training.elevationGain)} m` : null,
+      paceStr ? `⚡  ${paceStr}` : null,
+      caloriesStr ? `🔥  ${caloriesStr}` : null,
+      '',
+      `Hecho con DropZone • ${format(new Date(training.date), "d MMM yyyy", { locale: es })}`,
+      `#${training.type.toUpperCase()} #DropZone #Entrenamiento`
+    ].filter(Boolean);
+
+    const shareText = lines.join('\n');
+
+    await Share.share({
+      title: `Mi ${training.type} en DropZone`,
+      text: shareText,
+      dialogTitle: 'Compartir mi actividad',
+    });
   };
 
   // Formatear tiempo para los ejes
