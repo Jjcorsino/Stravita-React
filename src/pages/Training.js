@@ -90,7 +90,7 @@ const Training = () => {
   const isStationaryRef = useRef(false);
 
   // 📍 Hook de geolocalización de Capacitor
-const { location, error, isWatching, startWatching, stopWatching } = useGeolocation();
+  const { location, error, isWatching, startWatching, stopWatching } = useGeolocation();
 
   // ============================================
   // CONSTANTES DE FILTRADO GPS
@@ -104,6 +104,15 @@ const { location, error, isWatching, startWatching, stopWatching } = useGeolocat
   const MIN_ACCURACY = 30;
   const MIN_DISTANCE_ABSOLUTE = 0.001;
   const MAX_DRIFT_TIME = 2;
+  // ============================================
+  // CONSTANTE PARA ESTABILIZACIÓN INICIAL
+  // ============================================
+  const STABLE_POSITIONS_THRESHOLD = 3; // Número de posiciones consecutivas válidas necesarias al inicio
+
+  // Referencias para la estabilización inicial
+  const stableCounterRef = useRef(0);
+  // NUEVO: Flag que indica si ya hemos superado la estabilización inicial
+  const initialStabilizationPassedRef = useRef(false);
 
   // Iniciar GPS al montar el componente
   useEffect(() => {
@@ -128,6 +137,12 @@ const { location, error, isWatching, startWatching, stopWatching } = useGeolocat
   }, [error]);
 
   // ============================================
+  // Estados relacionados con el warmup
+  // ============================================
+  const [warmupCountdown, setWarmupCountdown] = useState(0);
+  const [isWarmupActive, setIsWarmupActive] = useState(false);
+
+  // ============================================
   // INICIAR ENTRENAMIENTO
   // ============================================
   const startTraining = () => {
@@ -136,53 +151,109 @@ const { location, error, isWatching, startWatching, stopWatching } = useGeolocat
       return;
     }
 
-    if (!location) {
-      alert('Esperando señal GPS. Intenta de nuevo en unos segundos.');
+    // Opcional: verificar si ya tenemos alguna señal GPS
+    if (!location || location.accuracy > 50) {
+      alert('Señal GPS débil o no disponible. Espera unos segundos e intenta de nuevo.');
       return;
     }
 
-    setCurrentTraining({ state: 'active', type: selectedType });
+    setIsWarmupActive(true);
+    setWarmupCountdown(5);
+    setTrainingState('preparing');
+
+    // Iniciamos la cuenta regresiva
+    startWarmupCountdown().then(() => {
+      finishWarmupAndStartTracking();
+    });
+  };
+
+  // Función independiente que maneja la cuenta regresiva
+  const startWarmupCountdown = () => {
+    return new Promise((resolve) => {
+      const interval = setInterval(() => {
+        setWarmupCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            resolve();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    });
+  };
+
+  // Finaliza el warmup y arranca el entrenamiento real
+  const finishWarmupAndStartTracking = () => {
+    setIsWarmupActive(false);
     setTrainingState('active');
+
+    // Usamos la posición actual al FINAL del warmup (más estable)
+    const now = new Date();
+    const initialAltitude = location?.altitude || 0;
+
     setTrainingData({
       type: selectedType,
-      startTime: new Date(),
+      startTime: now,
       currentTime: 0,
       distance: 0,
-      currentSpeed: location?.speed || 0,
+      currentSpeed: 0,
       avgSpeed: 0,
       maxSpeed: 0,
       route: [],
-      altitude: location?.altitude || 0,
-      startAltitude: location?.altitude || 0,
+      altitude: initialAltitude,
+      startAltitude: initialAltitude,
       elevationGain: 0,
       totalPausedTime: 0,
       lastValidPosition: null,
       movingTime: 0
     });
 
-    pausedTimeRef.current = 0;
+    // Resetear todas las referencias
     lastPositionRef.current = location ? {
       lat: location.lat,
       lng: location.lng,
-      altitude: location.altitude || 0,
-      timestamp: location.timestamp
+      altitude: initialAltitude,
+      timestamp: location.timestamp || now.getTime()
     } : null;
-    lastMovingTimeRef.current = Date.now();
+
+    lastMovingTimeRef.current = now.getTime();
     lastSpeedsRef.current = [];
     isStationaryRef.current = false;
     stationaryStartTimeRef.current = null;
     consecutiveRejectionsRef.current = 0;
+    pausedTimeRef.current = 0;
+    // ============================================
+    // NUEVO: Reiniciamos contador y flag de estabilización
+    // ============================================
+    stableCounterRef.current = 0;
+    initialStabilizationPassedRef.current = false;
 
+    // Iniciar el contador de tiempo transcurrido
     intervalRef.current = setInterval(() => {
-      setTrainingData(prev => ({
+      setTrainingData((prev) => ({
         ...prev,
         currentTime: prev.currentTime + 1
       }));
     }, 1000);
+
+    // ← ¡Muy importante! Aquí arrancamos el seguimiento GPS
+    startWatching();
+    setCurrentTraining({ state: 'active', type: selectedType });
   };
 
+  // Limpieza importante (en useEffect de cleanup)
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, []);
+
   // ============================================
-  // FILTRO DE POSICIÓN GPS
+  // FILTRO DE POSICIÓN GPS (CON ESTABILIZACIÓN SOLO AL INICIO)
   // ============================================
   useEffect(() => {
     if (trainingState !== 'active' || !location || !selectedType) return;
@@ -192,9 +263,13 @@ const { location, error, isWatching, startWatching, stopWatching } = useGeolocat
     const MIN_TRACK_SPEED = limits.minTrack;
     const MAX_VALID_SPEED = limits.max;
 
-    // 1. FILTRO DE PRECISIÓN
+    // 1. FILTRO DE PRECISIÓN (siempre se aplica)
     if (location.accuracy > MIN_ACCURACY) {
       console.log(`📍 GPS impreciso: ${location.accuracy.toFixed(0)}m`);
+      // Si aún no hemos pasado la estabilización inicial, reiniciamos el contador
+      if (!initialStabilizationPassedRef.current) {
+        stableCounterRef.current = 0;
+      }
       return;
     }
 
@@ -214,6 +289,7 @@ const { location, error, isWatching, startWatching, stopWatching } = useGeolocat
     if (deltaTimeMs < 500) return;
 
     const deltaTimeSec = deltaTimeMs / 1000;
+
     const distance = getDistanceFromLatLonInKm(
       lastPositionRef.current.lat,
       lastPositionRef.current.lng,
@@ -245,6 +321,9 @@ const { location, error, isWatching, startWatching, stopWatching } = useGeolocat
           console.log(`⏸️ Estacionario > ${MAX_DRIFT_TIME}s – reseteando referencia`);
           updateReference();
           isStationaryRef.current = false;
+          if (!initialStabilizationPassedRef.current) {
+            stableCounterRef.current = 0;
+          }
         }
       }
       return;
@@ -257,6 +336,9 @@ const { location, error, isWatching, startWatching, stopWatching } = useGeolocat
     if (distance < MIN_DISTANCE_ABSOLUTE) {
       console.log(`📏 Distancia < ${MIN_DISTANCE_ABSOLUTE * 1000}m, ignorada`);
       updateReference();
+      if (!initialStabilizationPassedRef.current) {
+        stableCounterRef.current = 0;
+      }
       return;
     }
 
@@ -264,15 +346,44 @@ const { location, error, isWatching, startWatching, stopWatching } = useGeolocat
     const maxDistPossible = (MAX_VALID_SPEED / 3.6) * deltaTimeSec / 1000;
     if (distance > maxDistPossible * 1.2) {
       console.log(`⚠️ Salto imposible: ${(distance * 1000).toFixed(0)}m en ${deltaTimeSec.toFixed(1)}s`);
+      if (!initialStabilizationPassedRef.current) {
+        stableCounterRef.current = 0;
+      }
       return;
     }
 
     // 6. VELOCIDAD NO REALISTA
     if (instantSpeed > MAX_VALID_SPEED) {
       console.log(`⚠️ Velocidad no realista: ${instantSpeed.toFixed(1)} km/h`);
+      if (!initialStabilizationPassedRef.current) {
+        stableCounterRef.current = 0;
+      }
       return;
     }
 
+    // ============================================
+    // FASE DE ESTABILIZACIÓN INICIAL (SOLO SI AÚN NO SE HA SUPERADO)
+    // ============================================
+    if (!initialStabilizationPassedRef.current) {
+      // Incrementamos el contador (esta posición ha pasado todos los filtros)
+      stableCounterRef.current++;
+      console.log(`🟡 Estabilizando GPS... (${stableCounterRef.current}/${STABLE_POSITIONS_THRESHOLD})`);
+
+      // Si alcanzamos el umbral, marcamos como estabilizado y actualizamos referencia
+      if (stableCounterRef.current >= STABLE_POSITIONS_THRESHOLD) {
+        console.log('✅ Estabilización inicial completada. Comenzando a registrar datos.');
+        initialStabilizationPassedRef.current = true;
+        updateReference(); // Guardamos la última posición válida
+      } else {
+        // Aún no hemos llegado al umbral: solo actualizamos referencia y salimos
+        updateReference();
+      }
+      return; // No actualizamos métricas durante la estabilización
+    }
+
+    // ============================================
+    // A PARTIR DE AQUÍ: ESTABILIZACIÓN SUPERADA -> PROCESAMIENTO NORMAL
+    // ============================================
     const shouldAddDistance = instantSpeed >= MIN_VALID_SPEED;
 
     lastSpeedsRef.current.push(instantSpeed);
@@ -360,6 +471,11 @@ const { location, error, isWatching, startWatching, stopWatching } = useGeolocat
     }
 
     lastMovingTimeRef.current = Date.now();
+    // ============================================
+    // NUEVO: Al reanudar, también necesitamos re-estabilizar
+    // ============================================
+    stableCounterRef.current = 0;
+    initialStabilizationPassedRef.current = false;
 
     intervalRef.current = setInterval(() => {
       setTrainingData(prev => ({
@@ -370,12 +486,20 @@ const { location, error, isWatching, startWatching, stopWatching } = useGeolocat
   };
 
   const finishTraining = () => {
-    stopWatching();
-    clearInterval(intervalRef.current);
     setFinishDialogOpen(true);
   };
 
+  const handleCancelFinish = () => {
+    setFinishDialogOpen(false);
+    // Reiniciamos el GPS
+    startWatching();
+  };
+
   const confirmFinish = () => {
+    stopWatching();
+    clearInterval(intervalRef.current);
+    intervalRef.current = null;
+
     const endTime = new Date();
 
     const totalDistance = trainingData.distance;
@@ -491,7 +615,8 @@ const { location, error, isWatching, startWatching, stopWatching } = useGeolocat
         </IconButton>
         <Typography variant="h5" sx={{ fontWeight: 700 }}>
           {trainingState === 'idle' ? 'Nuevo entrenamiento' :
-            trainingState === 'active' ? 'Entrenando' : 'Entrenamiento pausado'}
+          trainingState === 'preparing' ? 'Preparando GPS...' :
+          trainingState === 'active' ? 'Entrenando' : 'Entrenamiento pausado'}
         </Typography>
       </Box>
 
@@ -561,7 +686,6 @@ const { location, error, isWatching, startWatching, stopWatching } = useGeolocat
               Selecciona actividad
             </Typography>
             <Grid container spacing={2}>
-              {/* ... (tres opciones de actividad, igual que antes) */}
               <Grid item xs={4}>
                 <Paper
                   elevation={selectedType === 'caminar' ? 3 : 1}
@@ -634,6 +758,52 @@ const { location, error, isWatching, startWatching, stopWatching } = useGeolocat
             </Grid>
           </CardContent>
         </Card>
+      )}
+
+      {trainingState === 'preparing' && (
+        <Box 
+          sx={{ 
+            textAlign: 'center', 
+            py: 10, 
+            px: 3,
+            minHeight: '60vh',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            alignItems: 'center'
+          }}
+        >
+          <Typography variant="h5" gutterBottom sx={{ fontWeight: 600 }}>
+            Preparando GPS...
+          </Typography>
+          
+          <Box 
+            sx={{ 
+              width: 120, 
+              height: 120, 
+              borderRadius: '50%', 
+              bgcolor: 'primary.main', 
+              color: 'white',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '3.5rem',
+              fontWeight: 'bold',
+              mb: 3,
+              boxShadow: 4
+            }}
+          >
+            {warmupCountdown}
+          </Box>
+
+          <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 320 }}>
+            Mantén el teléfono con buena vista al cielo para una mejor precisión inicial.
+          </Typography>
+
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 4 }}>
+            Tipo de actividad: {selectedType.charAt(0).toUpperCase() + selectedType.slice(1)}
+          </Typography>
+        </Box>
       )}
 
       {/* Métricas en tiempo real */}
@@ -829,7 +999,7 @@ const { location, error, isWatching, startWatching, stopWatching } = useGeolocat
       {/* Diálogo de finalizar */}
       <Dialog
         open={finishDialogOpen}
-        onClose={() => setFinishDialogOpen(false)}
+        onClose={handleCancelFinish}
         PaperProps={{ sx: { borderRadius: 3, p: 1 } }}
       >
         <DialogTitle sx={{ fontWeight: 700 }}>
