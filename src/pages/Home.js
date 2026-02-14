@@ -1,5 +1,5 @@
 // pages/Home.js
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Typography,
@@ -11,7 +11,13 @@ import {
   Avatar,
   IconButton,
   Divider,
-  Button
+  Button,
+  // ← NUEVOS IMPORTS PARA EL DIÁLOGO
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
 } from '@mui/material';
 import {
   DirectionsWalk,
@@ -24,7 +30,7 @@ import {
   LocalFireDepartment,
   CalendarToday,
   TrendingUp,
-  DirectionsRun as RunIcon
+  DirectionsRun as RunIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
@@ -35,8 +41,12 @@ const Home = () => {
   const navigate = useNavigate();
   const { trainings, deleteTraining, profile } = useData();
 
+  // Estado para el diálogo de confirmación
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [trainingToDelete, setTrainingToDelete] = useState(null);
+
   const getActivityIcon = (type) => {
-    switch(type) {
+    switch (type) {
       case 'caminar': return <DirectionsWalk sx={{ color: '#2E7D32' }} />;
       case 'ciclismo': return <DirectionsBike sx={{ color: '#1976D2' }} />;
       case 'mtb': return <Terrain sx={{ color: '#8D6E63' }} />;
@@ -45,7 +55,7 @@ const Home = () => {
   };
 
   const getActivityColor = (type) => {
-    switch(type) {
+    switch (type) {
       case 'caminar': return '#E8F5E9';
       case 'ciclismo': return '#E3F2FD';
       case 'mtb': return '#EFEBE9';
@@ -57,6 +67,20 @@ const Home = () => {
     const hrs = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
     return hrs > 0 ? `${hrs}h ${mins}min` : `${mins}min`;
+  };
+
+  const handleDeleteClick = (id) => (e) => {
+    e.stopPropagation();
+    setTrainingToDelete(id);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (trainingToDelete) {
+      deleteTraining(trainingToDelete);
+    }
+    setDeleteDialogOpen(false);
+    setTrainingToDelete(null);
   };
 
   return (
@@ -78,15 +102,14 @@ const Home = () => {
 
       {/* Resumen rápido */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
-         <Grid item xs={6}>
+        <Grid item xs={6}>
           <Card sx={{ bgcolor: 'primary.main', color: 'white' }}>
             <CardContent>
               <Typography variant="body2" sx={{ opacity: 0.9 }}>Distancia Total</Typography>
               <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                {/* ✅ NUEVA LÓGICA: metros si es < 1km */}
                 {(() => {
                   const totalDistance = trainings.reduce((acc, t) => acc + t.distance, 0);
-                  return totalDistance < 1 
+                  return totalDistance < 1
                     ? `${Math.round(totalDistance * 1000)}`
                     : totalDistance.toFixed(1);
                 })()}
@@ -124,19 +147,17 @@ const Home = () => {
       </Box>
 
       {trainings.map((training) => (
-        <Card 
-          key={training.id} 
-          sx={{ 
+        <Card
+          key={training.id}
+          sx={{
             mb: 2,
             borderLeft: '6px solid',
-            borderLeftColor: 
+            borderLeftColor:
               training.type === 'caminar' ? '#2E7D32' :
               training.type === 'ciclismo' ? '#1976D2' :
-              training.type === 'MTB' ? '#8D6E63' :
-              '#8D6E63'
+              '#8D6E63',
           }}
         >
-
           <CardActionArea onClick={() => navigate(`/training/${training.id}`)}>
             <CardContent>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -154,12 +175,11 @@ const Home = () => {
                     </Typography>
                   </Box>
                 </Box>
-                <IconButton 
-                  size="small" 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    deleteTraining(training.id);
-                  }}
+
+                {/* ← BOTÓN DE BORRADO CON CONFIRMACIÓN */}
+                <IconButton
+                  size="small"
+                  onClick={handleDeleteClick(training.id)}
                   sx={{ color: 'error.main' }}
                 >
                   <DeleteOutline />
@@ -170,10 +190,9 @@ const Home = () => {
                 <Grid item xs={4}>
                   <Typography variant="body2" color="text.secondary">Distancia</Typography>
                   <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                    {training.distance < 1 
-                    ? `${Math.round(training.distance * 1000)} m`
-                    : `${training.distance.toFixed(2)} km`
-                  }
+                    {training.distance < 1
+                      ? `${Math.round(training.distance * 1000)} m`
+                      : `${training.distance.toFixed(2)} km`}
                   </Typography>
                 </Grid>
                 <Grid item xs={4}>
@@ -191,18 +210,8 @@ const Home = () => {
               </Grid>
 
               <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
-                <Chip 
-                  size="small" 
-                  icon={<TrendingUp />} 
-                  label={`${training.elevationGain}m +`} 
-                  variant="outlined"
-                />
-                <Chip 
-                  size="small" 
-                  icon={<LocalFireDepartment sx={{ color: '#FF6B6B'}} />} 
-                  label={`${training.calories} kcal`} 
-                  variant="outlined"
-                />
+                <Chip size="small" icon={<TrendingUp />} label={`${training.elevationGain}m +`} variant="outlined" />
+                <Chip size="small" icon={<LocalFireDepartment sx={{ color: '#FF6B6B' }} />} label={`${training.calories} kcal`} variant="outlined" />
               </Box>
             </CardContent>
           </CardActionArea>
@@ -214,15 +223,39 @@ const Home = () => {
           <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
             No tienes entrenamientos registrados
           </Typography>
-          <Button 
-            variant="contained" 
-            onClick={() => navigate('/training')}
-            startIcon={<RunIcon />}
-          >
+          <Button variant="contained" onClick={() => navigate('/training')} startIcon={<RunIcon />}>
             Comenzar entrenamiento
           </Button>
         </Card>
       )}
+
+      {/* ====================== DIÁLOGO DE CONFIRMACIÓN ====================== */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        PaperProps={{ sx: { borderRadius: 3, p: 1 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 700 }}>Eliminar entrenamiento</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            ¿Estás seguro de que quieres eliminar este entrenamiento?<br />
+            <strong>Esta acción no se puede deshacer.</strong>
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ p: 2, pt: 0 }}>
+          <Button onClick={() => setDeleteDialogOpen(false)} variant="outlined" sx={{ borderRadius: 2 }}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={confirmDelete}
+            variant="contained"
+            color="error"
+            sx={{ borderRadius: 2 }}
+          >
+            Eliminar
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

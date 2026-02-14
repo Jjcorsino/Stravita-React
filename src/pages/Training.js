@@ -104,14 +104,15 @@ const Training = () => {
   const MIN_ACCURACY = 30;
   const MIN_DISTANCE_ABSOLUTE = 0.001;
   const MAX_DRIFT_TIME = 2;
+
   // ============================================
   // CONSTANTE PARA ESTABILIZACIÓN INICIAL
   // ============================================
-  const STABLE_POSITIONS_THRESHOLD = 3; // Número de posiciones consecutivas válidas necesarias al inicio
+  const STABLE_POSITIONS_THRESHOLD = 2; 
+  const STABILIZATION_ACCURACY = 50;
 
   // Referencias para la estabilización inicial
   const stableCounterRef = useRef(0);
-  // NUEVO: Flag que indica si ya hemos superado la estabilización inicial
   const initialStabilizationPassedRef = useRef(false);
 
   // Iniciar GPS al montar el componente
@@ -262,13 +263,13 @@ const Training = () => {
     const MIN_VALID_SPEED = limits.minValid;
     const MIN_TRACK_SPEED = limits.minTrack;
     const MAX_VALID_SPEED = limits.max;
-
+    const currentAccuracyThreshold = initialStabilizationPassedRef.current ? MIN_ACCURACY : STABILIZATION_ACCURACY;
+    
     // 1. FILTRO DE PRECISIÓN (siempre se aplica)
-    if (location.accuracy > MIN_ACCURACY) {
-      console.log(`📍 GPS impreciso: ${location.accuracy.toFixed(0)}m`);
-      // Si aún no hemos pasado la estabilización inicial, reiniciamos el contador
+     if (location.accuracy > currentAccuracyThreshold) {
+      console.log(`📍 GPS impreciso: ${location.accuracy.toFixed(0)}m (umbral: ${currentAccuracyThreshold}m)`);
       if (!initialStabilizationPassedRef.current) {
-        stableCounterRef.current = 0;
+        stableCounterRef.current = 0; // Reiniciamos contador si estamos en estabilización
       }
       return;
     }
@@ -311,25 +312,30 @@ const Training = () => {
     };
 
     // 3. DETECTOR DE ESTACIONARIO
-    if (instantSpeed < MIN_TRACK_SPEED) {
-      if (!isStationaryRef.current) {
-        stationaryStartTimeRef.current = Date.now();
-        isStationaryRef.current = true;
-      } else {
-        const stationarySec = (Date.now() - stationaryStartTimeRef.current) / 1000;
-        if (stationarySec > MAX_DRIFT_TIME) {
-          console.log(`⏸️ Estacionario > ${MAX_DRIFT_TIME}s – reseteando referencia`);
-          updateReference();
-          isStationaryRef.current = false;
-          if (!initialStabilizationPassedRef.current) {
-            stableCounterRef.current = 0;
+
+    if (initialStabilizationPassedRef.current) {
+      // Solo cuando ya hemos superado la estabilización aplicamos el filtro de estacionario
+      if (instantSpeed < limits.minTrack) {
+        if (!isStationaryRef.current) {
+          stationaryStartTimeRef.current = Date.now();
+          isStationaryRef.current = true;
+        } else {
+          const stationarySec = (Date.now() - stationaryStartTimeRef.current) / 1000;
+          if (stationarySec > MAX_DRIFT_TIME) {
+            console.log(`⏸️ Estacionario > ${MAX_DRIFT_TIME}s – reseteando referencia`);
+            updateReference();
+            isStationaryRef.current = false;
+            // No reiniciamos el contador de estabilización porque ya pasó esa fase
           }
         }
+        return;
+      } else {
+        isStationaryRef.current = false;
+        stationaryStartTimeRef.current = null;
       }
-      return;
     } else {
-      isStationaryRef.current = false;
-      stationaryStartTimeRef.current = null;
+      // Durante la estabilización, no filtramos por estar quieto, solo actualizamos referencia si es necesario
+      // pero seguimos adelante con el resto de filtros
     }
 
     // 4. DISTANCIA MÍNIMA ABSOLUTA
@@ -496,92 +502,97 @@ const Training = () => {
   };
 
   const confirmFinish = () => {
-    stopWatching();
-    clearInterval(intervalRef.current);
-    intervalRef.current = null;
+  stopWatching();
+  clearInterval(intervalRef.current);
+  intervalRef.current = null;
 
-    const endTime = new Date();
+  const endTime = new Date();
 
-    const totalDistance = trainingData.distance;
-    const totalMovingSeconds = trainingData.movingTime;
-    const totalCurrentSeconds = trainingData.currentTime;
+  const totalDistance = trainingData.distance;
+  const totalMovingSeconds = trainingData.movingTime;
+  const totalCurrentSeconds = trainingData.currentTime;
 
-    const validatedMaxSpeed = Math.min(
-      trainingData.maxSpeed,
-      SPEED_LIMITS[trainingData.type]?.max || 60
-    );
+  const validatedMaxSpeed = Math.min(
+    trainingData.maxSpeed,
+    SPEED_LIMITS[trainingData.type]?.max || 60
+  );
 
-    let avgPace = '0:00';
-    if (totalDistance > 0 && totalMovingSeconds > 0) {
-      const paceInSeconds = totalMovingSeconds / totalDistance;
-      const paceMinutes = Math.floor(paceInSeconds / 60);
-      const paceSecs = Math.floor(paceInSeconds % 60);
-      avgPace = `${paceMinutes}:${paceSecs.toString().padStart(2, '0')}`;
-    }
+  let avgPace = '0:00';
+  if (totalDistance > 0 && totalMovingSeconds > 0) {
+    const paceInSeconds = totalMovingSeconds / totalDistance;
+    const paceMinutes = Math.floor(paceInSeconds / 60);
+    const paceSecs = Math.floor(paceInSeconds % 60);
+    avgPace = `${paceMinutes}:${paceSecs.toString().padStart(2, '0')}`;
+  }
 
-    let caloriesBurned = 0;
-    if (profile?.weight && totalDistance > 0) {
-      const met = selectedType === 'caminar' ? 3.8 : selectedType === 'ciclismo' ? 6.8 : 8.5;
-      const hours = totalMovingSeconds / 3600;
-      caloriesBurned = Math.round(met * profile.weight * hours);
-    }
+  let caloriesBurned = 0;
+  if (profile?.weight && totalDistance > 0) {
+    const met = trainingData.type === 'caminar' ? 3.8 : trainingData.type === 'ciclismo' ? 6.8 : 8.5;
+    const hours = totalMovingSeconds / 3600;
+    caloriesBurned = Math.round(met * profile.weight * hours);
+  }
 
-    const splits = [];
-    let lastSplitKm = 0;
-    let lastSplitTime = 0;
+  const splits = [];
+  let lastSplitKm = 0;
+  let lastSplitTime = 0;
 
-    if (trainingData.route.length > 0) {
-      trainingData.route.forEach((point, index) => {
-        if (index === 0) {
-          lastSplitTime = point.time;
-          return;
-        }
-        const pointDistance = point.distance || 0;
-        if (Math.floor(pointDistance) > lastSplitKm) {
-          const splitTime = point.time - lastSplitTime;
-          const splitMinutes = Math.floor(splitTime / 60);
-          const splitSeconds = splitTime % 60;
-          splits.push({
-            km: lastSplitKm + 1,
-            pace: `${splitMinutes}:${splitSeconds.toString().padStart(2, '0')}`,
-            time: splitTime
-          });
-          lastSplitKm = Math.floor(pointDistance);
-          lastSplitTime = point.time;
-        }
-      });
-    }
+  if (trainingData.route.length > 0) {
+    trainingData.route.forEach((point, index) => {
+      if (index === 0) {
+        lastSplitTime = point.time;
+        return;
+      }
+      const pointDistance = point.distance || 0;
+      if (Math.floor(pointDistance) > lastSplitKm) {
+        const splitTime = point.time - lastSplitTime;
+        const splitMinutes = Math.floor(splitTime / 60);
+        const splitSeconds = splitTime % 60;
+        splits.push({
+          km: lastSplitKm + 1,
+          pace: `${splitMinutes}:${splitSeconds.toString().padStart(2, '0')}`,
+          time: splitTime
+        });
+        lastSplitKm = Math.floor(pointDistance);
+        lastSplitTime = point.time;
+      }
+    });
+  }
 
-    const newTraining = {
-      id: Date.now(),
-      type: trainingData.type,
-      date: trainingData.startTime.toISOString(),
-      startTime: trainingData.startTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
-      endTime: endTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
-      movingTime: Math.round(totalMovingSeconds),
-      totalTime: Math.round(totalCurrentSeconds),
-      distance: parseFloat(totalDistance.toFixed(2)),
-      avgSpeed: totalMovingSeconds > 0
-        ? parseFloat((totalDistance / (totalMovingSeconds / 3600)).toFixed(1))
-        : 0,
-      maxSpeed: parseFloat(validatedMaxSpeed.toFixed(1)),
-      avgPace: avgPace,
-      elevationGain: Math.round(trainingData.elevationGain),
-      elevationLoss: 0,
-      startAltitude: Math.round(trainingData.startAltitude),
-      endAltitude: Math.round(trainingData.altitude),
-      calories: caloriesBurned,
-      route: trainingData.route,
-      splits: splits
-    };
-
-    addTraining(newTraining);
-    setFinishDialogOpen(false);
-    setTrainingState('idle');
-    setSelectedType(null);
-    setCurrentTraining(null);
-    navigate('/home');
+  const newTraining = {
+    id: Date.now(),
+    type: trainingData.type,
+    date: trainingData.startTime.toISOString(),
+    startTime: trainingData.startTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+    endTime: endTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+    movingTime: Math.round(totalMovingSeconds),
+    totalTime: Math.round(totalCurrentSeconds),
+    distance: parseFloat(totalDistance.toFixed(2)),
+    avgSpeed: totalMovingSeconds > 0
+      ? parseFloat((totalDistance / (totalMovingSeconds / 3600)).toFixed(1))
+      : 0,
+    maxSpeed: parseFloat(validatedMaxSpeed.toFixed(1)),
+    avgPace: avgPace,
+    elevationGain: Math.round(trainingData.elevationGain),
+    elevationLoss: 0,
+    startAltitude: Math.round(trainingData.startAltitude),
+    endAltitude: Math.round(trainingData.altitude),
+    calories: caloriesBurned,
+    route: trainingData.route,
+    splits: splits
   };
+
+  // ←←← AQUÍ ESTÁ EL CAMBIO PRINCIPAL ←←←
+  addTraining(newTraining);
+
+  // Limpiamos estados
+  setFinishDialogOpen(false);
+  setTrainingState('idle');
+  setSelectedType(null);
+  setCurrentTraining(null);
+
+  // ¡Navegamos directamente al detalle del entrenamiento recién guardado!
+  navigate(`/training/${newTraining.id}`);
+};
 
   const formatTime = (seconds) => {
     if (!seconds || seconds < 0) return '00:00:00';

@@ -16,7 +16,12 @@ import {
   TableCell,
   TableContainer,
   TableRow,
-  Paper
+  Paper,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
 } from '@mui/material';
 import {
   ArrowBack,
@@ -63,6 +68,7 @@ const TrainingDetail = () => {
   const { id } = useParams();
   const { trainings, deleteTraining } = useData();
   const training = trainings.find(t => t.id === parseInt(id));
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   // Estados para los gráficos
   const [altitudeData, setAltitudeData] = useState([]);
@@ -185,11 +191,8 @@ const TrainingDetail = () => {
     return `${pace}/km`;
   };
 
-  const handleDelete = () => {
-    if (window.confirm('¿Eliminar este entrenamiento?')) {
-      deleteTraining(training.id);
-      navigate('/home');
-    }
+  const handleDeleteClick = () => {
+    setDeleteDialogOpen(true);
   };
 
   // Función para compartir
@@ -613,11 +616,65 @@ const TrainingDetail = () => {
         variant="outlined"
         color="error"
         startIcon={<DeleteOutline />}
-        onClick={handleDelete}
+        onClick={handleDeleteClick}
         sx={{ mt: 2, py: 1.5 }}
       >
         Eliminar entrenamiento
       </Button>
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        PaperProps={{ sx: { borderRadius: 3, p: 1 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 700 }}>Eliminar entrenamiento</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            ¿Estás seguro de que quieres eliminar este entrenamiento?<br />
+            <strong>Esta acción no se puede deshacer.</strong>
+          </DialogContentText>
+
+          {/* Resumen visual (como en el diálogo de finalizar) */}
+          <Paper
+            elevation={0}
+            sx={{ mt: 2, p: 2, bgcolor: 'background.default', borderRadius: 2 }}
+          >
+            <Grid container spacing={2}>
+              <Grid item xs={6}>
+                <Typography variant="body2" color="text.secondary">Distancia</Typography>
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                  {training.distance.toFixed(2)} km
+                </Typography>
+              </Grid>
+              <Grid item xs={6}>
+                <Typography variant="body2" color="text.secondary">Fecha</Typography>
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                  {format(new Date(training.date), "d MMM yyyy", { locale: es })}
+                </Typography>
+              </Grid>
+            </Grid>
+          </Paper>
+        </DialogContent>
+
+        <DialogActions sx={{ p: 2, pt: 0 }}>
+          <Button onClick={() => setDeleteDialogOpen(false)} variant="outlined" sx={{ borderRadius: 2 }}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={() => {
+              deleteTraining(training.id);
+              setDeleteDialogOpen(false);
+              navigate('/home');
+            }}
+            variant="contained"
+            color="error"
+            sx={{ borderRadius: 2 }}
+          >
+            Eliminar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+
     </Box>
   );
 };
