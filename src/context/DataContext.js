@@ -1,5 +1,6 @@
 // context/DataContext.js
 import React, { createContext, useState, useContext, useEffect } from 'react';
+import { Preferences } from '@capacitor/preferences';
 
 const DataContext = createContext();
 
@@ -8,16 +9,16 @@ const initialTrainings = [
   {
     id: 1,
     type: 'caminar',
-    date: '2024-01-15T10:30:00',
+    date: '2026-01-15T10:30:00',
     startTime: '10:30',
     endTime: '11:45',
-    movingTime: 2700, // segundos
+    movingTime: 2700,
     totalTime: 3000,
-    distance: 4.2, // km
-    avgSpeed: 5.6, // km/h
+    distance: 4.2,
+    avgSpeed: 5.6,
     maxSpeed: 7.2,
-    avgPace: '10:42', // min/km
-    elevationGain: 45, // metros
+    avgPace: '10:42',
+    elevationGain: 45,
     elevationLoss: 38,
     startAltitude: 120,
     endAltitude: 127,
@@ -25,7 +26,6 @@ const initialTrainings = [
     route: [
       { lat: 40.416775, lng: -3.703790, altitude: 120 },
       { lat: 40.416875, lng: -3.703890, altitude: 122 },
-      // ... más puntos
     ],
     splits: [
       { km: 1, pace: '10:15', time: 615 },
@@ -37,8 +37,8 @@ const initialTrainings = [
   },
   {
     id: 2,
-    type: 'bici',
-    date: '2024-01-14T15:00:00',
+    type: 'ciclismo',
+    date: '2026-01-14T15:00:00',
     startTime: '15:00',
     endTime: '16:30',
     movingTime: 4800,
@@ -55,13 +55,12 @@ const initialTrainings = [
     splits: [
       { km: 1, pace: '3:05', time: 185 },
       { km: 2, pace: '3:12', time: 192 },
-      // ... más splits
     ]
   },
   {
     id: 3,
     type: 'mtb',
-    date: '2024-01-12T09:00:00',
+    date: '2026-01-12T09:00:00',
     startTime: '09:00',
     endTime: '11:00',
     movingTime: 6000,
@@ -78,44 +77,63 @@ const initialTrainings = [
     splits: [
       { km: 1, pace: '5:15', time: 315 },
       { km: 2, pace: '5:22', time: 322 },
-      // ... más splits
     ]
   }
 ];
 
 const initialProfile = {
-  name: 'Juan Pérez',
-  weight: 75, // kg
-  height: 178, // cm
-  age: 32,
+  name: 'Julian Corsino',
+  weight: 71,
+  height: 174,
+  age: 29,
   sex: 'masculino',
   fitnessLevel: 'intermedio',
-  restingBpm: 62,
-  maxBpm: 188,
-  email: 'juan.perez@email.com',
-  avatar: null
+  restingBpm: 64,
+  maxBpm: 198,
+  email: 'juliancorsino@gmail.com',
+  avatar: null,
+  startAltitude: 100
 };
 
 export const DataProvider = ({ children }) => {
-  const [trainings, setTrainings] = useState(() => {
-    const saved = localStorage.getItem('trainings');
-    return saved ? JSON.parse(saved) : initialTrainings;
-  });
-  
-  const [profile, setProfile] = useState(() => {
-    const saved = localStorage.getItem('profile');
-    return saved ? JSON.parse(saved) : initialProfile;
-  });
-
+  const [trainings, setTrainings] = useState([]);
+  const [profile, setProfile] = useState(null);
   const [currentTraining, setCurrentTraining] = useState(null);
+  const [loading, setLoading] = useState(true);
 
+  // Cargar datos desde Preferences al iniciar
   useEffect(() => {
-    localStorage.setItem('trainings', JSON.stringify(trainings));
-  }, [trainings]);
+    const loadData = async () => {
+      try {
+        const trainingsData = await Preferences.get({ key: 'trainings' });
+        const profileData = await Preferences.get({ key: 'profile' });
+        
+        setTrainings(trainingsData.value ? JSON.parse(trainingsData.value) : initialTrainings);
+        setProfile(profileData.value ? JSON.parse(profileData.value) : initialProfile);
+      } catch (error) {
+        console.error('Error loading data from Preferences:', error);
+        setTrainings(initialTrainings);
+        setProfile(initialProfile);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, []);
 
+  // Guardar trainings cada vez que cambien
   useEffect(() => {
-    localStorage.setItem('profile', JSON.stringify(profile));
-  }, [profile]);
+    if (!loading) {
+      Preferences.set({ key: 'trainings', value: JSON.stringify(trainings) });
+    }
+  }, [trainings, loading]);
+
+  // Guardar profile cada vez que cambie
+  useEffect(() => {
+    if (!loading) {
+      Preferences.set({ key: 'profile', value: JSON.stringify(profile) });
+    }
+  }, [profile, loading]);
 
   const addTraining = (training) => {
     setTrainings(prev => [training, ...prev]);
@@ -128,6 +146,11 @@ export const DataProvider = ({ children }) => {
   const updateProfile = (newProfile) => {
     setProfile(newProfile);
   };
+
+  if (loading) {
+    // Puedes reemplazar esto por un spinner o pantalla de carga
+    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>Cargando...</div>;
+  }
 
   return (
     <DataContext.Provider value={{

@@ -17,7 +17,8 @@ import {
   MenuItem,
   Slider,
   Alert,
-  Snackbar
+  Snackbar,
+  LinearProgress, // <-- nueva importación
 } from '@mui/material';
 import {
   Edit,
@@ -29,30 +30,101 @@ import {
   MonitorHeart,
   Cake,
   Female,
-  Male
+  Male,
+  Whatshot,      // <-- nueva
+  DateRange,     // <-- nueva
+  Straighten,    // <-- nueva
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
+import { format, subDays } from 'date-fns'; // <-- nuevas
 
 const Profile = () => {
   const navigate = useNavigate();
-  const { profile, updateProfile } = useData();
-  
+  const { profile, updateProfile, trainings } = useData(); // <-- añadimos trainings
+
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({ ...profile });
   const [snackbarOpen, setSnackbarOpen] = useState(false);
 
+  // --- Cálculos de métricas adicionales (solo lectura) ---
+  const totalTrainings = trainings.length;
+  const totalDistance = trainings
+    .reduce((acc, t) => acc + t.distance, 0)
+    .toFixed(1);
+
+  // Conjunto de fechas con actividad
+  const activityDates = new Set(
+    trainings.map((t) => format(new Date(t.date), 'yyyy-MM-dd'))
+  );
+
+  // Racha actual (días consecutivos hasta hoy)
+  let currentStreak = 0;
+  let date = new Date();
+  while (true) {
+    const dateStr = format(date, 'yyyy-MM-dd');
+    if (activityDates.has(dateStr)) {
+      currentStreak++;
+      date = subDays(date, 1);
+    } else break;
+  }
+
+  // Días entrenados en los últimos 7 días
+  const last7Days = Array.from({ length: 7 }, (_, i) => {
+    const d = subDays(new Date(), i);
+    return format(d, 'yyyy-MM-dd');
+  });
+  const trainedLast7Days = last7Days.filter((d) => activityDates.has(d)).length;
+
+  // IMC y clasificación
+  let bmi = 0;
+  let bmiCategory = '';
+  let bmiColor = '';
+  if (profile.weight && profile.height) {
+    bmi = profile.weight / Math.pow(profile.height / 100, 2);
+    if (bmi < 18.5) {
+      bmiCategory = 'Bajo peso';
+      bmiColor = '#2196F3';
+    } else if (bmi < 25) {
+      bmiCategory = 'Normal';
+      bmiColor = '#4CAF50';
+    } else if (bmi < 30) {
+      bmiCategory = 'Sobrepeso';
+      bmiColor = '#FF9800';
+    } else {
+      bmiCategory = 'Obesidad';
+      bmiColor = '#F44336';
+    }
+  }
+
+  // FC máxima teórica
+  const theoreticalMaxHr = profile.age ? 220 - profile.age : 0;
+
+  // Metabolismo basal (Mifflin-St Jeor)
+  let bmr = 0;
+  if (profile.weight && profile.height && profile.age && profile.sex) {
+    if (profile.sex === 'masculino') {
+      bmr = 10 * profile.weight + 6.25 * profile.height - 5 * profile.age + 5;
+    } else if (profile.sex === 'femenino') {
+      bmr = 10 * profile.weight + 6.25 * profile.height - 5 * profile.age - 161;
+    } else {
+      // Valor neutro (promedio)
+      bmr = 10 * profile.weight + 6.25 * profile.height - 5 * profile.age - 78;
+    }
+  }
+  // -------------------------------------------------------
+
   const handleChange = (field) => (event) => {
     setFormData({
       ...formData,
-      [field]: event.target.value
+      [field]: event.target.value,
     });
   };
 
   const handleSliderChange = (field) => (event, newValue) => {
     setFormData({
       ...formData,
-      [field]: newValue
+      [field]: newValue,
     });
   };
 
@@ -71,19 +143,26 @@ const Profile = () => {
     { value: 'principiante', label: 'Principiante' },
     { value: 'intermedio', label: 'Intermedio' },
     { value: 'avanzado', label: 'Avanzado' },
-    { value: 'atleta', label: 'Atleta' }
+    { value: 'atleta', label: 'Atleta' },
   ];
 
   const sexes = [
     { value: 'masculino', label: 'Masculino', icon: <Male /> },
     { value: 'femenino', label: 'Femenino', icon: <Female /> },
-    { value: 'otro', label: 'Otro', icon: <Person /> }
+    { value: 'otro', label: 'Otro', icon: <Person /> },
   ];
 
   return (
     <Box sx={{ p: 2, pb: 10 }}>
       {/* Header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          mb: 3,
+        }}
+      >
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
           <IconButton onClick={() => navigate('/home')} sx={{ mr: 1 }}>
             <ArrowBack />
@@ -126,7 +205,7 @@ const Profile = () => {
             fontSize: 48,
             border: '4px solid',
             borderColor: 'background.paper',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
           }}
         >
           {formData.name?.charAt(0) || 'U'}
@@ -136,7 +215,16 @@ const Profile = () => {
       {/* Información personal */}
       <Card sx={{ mb: 2 }}>
         <CardContent>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography
+            variant="subtitle1"
+            sx={{
+              fontWeight: 600,
+              mb: 2,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+            }}
+          >
             <Person sx={{ color: 'primary.main' }} />
             Información personal
           </Typography>
@@ -151,7 +239,7 @@ const Profile = () => {
                 disabled={!isEditing}
                 variant={isEditing ? 'outlined' : 'standard'}
                 InputProps={{
-                  readOnly: !isEditing
+                  readOnly: !isEditing,
                 }}
               />
             </Grid>
@@ -165,7 +253,7 @@ const Profile = () => {
                 disabled={!isEditing}
                 variant={isEditing ? 'outlined' : 'standard'}
                 InputProps={{
-                  readOnly: !isEditing
+                  readOnly: !isEditing,
                 }}
               />
             </Grid>
@@ -176,7 +264,16 @@ const Profile = () => {
       {/* Datos físicos */}
       <Card sx={{ mb: 2 }}>
         <CardContent>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography
+            variant="subtitle1"
+            sx={{
+              fontWeight: 600,
+              mb: 2,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+            }}
+          >
             <FitnessCenter sx={{ color: 'primary.main' }} />
             Datos físicos
           </Typography>
@@ -193,7 +290,11 @@ const Profile = () => {
                 variant={isEditing ? 'outlined' : 'standard'}
                 InputProps={{
                   readOnly: !isEditing,
-                  endAdornment: <Typography variant="body2" color="text.secondary">años</Typography>
+                  endAdornment: (
+                    <Typography variant="body2" color="text.secondary">
+                      años
+                    </Typography>
+                  ),
                 }}
               />
             </Grid>
@@ -208,7 +309,11 @@ const Profile = () => {
                 variant={isEditing ? 'outlined' : 'standard'}
                 InputProps={{
                   readOnly: !isEditing,
-                  endAdornment: <Typography variant="body2" color="text.secondary">kg</Typography>
+                  endAdornment: (
+                    <Typography variant="body2" color="text.secondary">
+                      kg
+                    </Typography>
+                  ),
                 }}
               />
             </Grid>
@@ -223,12 +328,19 @@ const Profile = () => {
                 variant={isEditing ? 'outlined' : 'standard'}
                 InputProps={{
                   readOnly: !isEditing,
-                  endAdornment: <Typography variant="body2" color="text.secondary">cm</Typography>
+                  endAdornment: (
+                    <Typography variant="body2" color="text.secondary">
+                      cm
+                    </Typography>
+                  ),
                 }}
               />
             </Grid>
             <Grid item xs={6}>
-              <FormControl fullWidth variant={isEditing ? 'outlined' : 'standard'}>
+              <FormControl
+                fullWidth
+                variant={isEditing ? 'outlined' : 'standard'}
+              >
                 <InputLabel>Sexo</InputLabel>
                 <Select
                   value={formData.sex || ''}
@@ -255,14 +367,26 @@ const Profile = () => {
       {/* Condición física */}
       <Card sx={{ mb: 2 }}>
         <CardContent>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography
+            variant="subtitle1"
+            sx={{
+              fontWeight: 600,
+              mb: 2,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+            }}
+          >
             <MonitorHeart sx={{ color: 'primary.main' }} />
             Condición física
           </Typography>
 
           <Grid container spacing={3}>
             <Grid item xs={12}>
-              <FormControl fullWidth variant={isEditing ? 'outlined' : 'standard'}>
+              <FormControl
+                fullWidth
+                variant={isEditing ? 'outlined' : 'standard'}
+              >
                 <InputLabel>Nivel de condición</InputLabel>
                 <Select
                   value={formData.fitnessLevel || ''}
@@ -279,7 +403,7 @@ const Profile = () => {
                 </Select>
               </FormControl>
             </Grid>
-            
+
             <Grid item xs={12}>
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 Frecuencia cardíaca en reposo
@@ -295,7 +419,7 @@ const Profile = () => {
                       { value: 40, label: '40' },
                       { value: 60, label: '60' },
                       { value: 80, label: '80' },
-                      { value: 100, label: '100' }
+                      { value: 100, label: '100' },
                     ]}
                     valueLabelDisplay="auto"
                   />
@@ -321,7 +445,7 @@ const Profile = () => {
                     marks={[
                       { value: 140, label: '140' },
                       { value: 180, label: '180' },
-                      { value: 220, label: '220' }
+                      { value: 220, label: '220' },
                     ]}
                     valueLabelDisplay="auto"
                   />
@@ -336,32 +460,166 @@ const Profile = () => {
         </CardContent>
       </Card>
 
-      {/* Estadísticas */}
+      {/* Resumen de actividad (solo visible cuando no se está editando) */}
       {!isEditing && (
         <Card>
           <CardContent>
             <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
               Resumen de actividad
             </Typography>
+
             <Grid container spacing={2}>
+              {/* IMC + clasificación */}
               <Grid item xs={6}>
                 <Card variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
                   <Typography variant="body2" color="text.secondary">
                     IMC
                   </Typography>
                   <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                    {(profile.weight / Math.pow(profile.height / 100, 2)).toFixed(1)}
+                    {bmi.toFixed(1)}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: bmiColor, fontWeight: 600 }}
+                  >
+                    {bmiCategory}
                   </Typography>
                 </Card>
               </Grid>
+
+              {/* FC Zona quema grasa */}
               <Grid item xs={6}>
                 <Card variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
                   <Typography variant="body2" color="text.secondary">
-                    FC Zona quema grasa
+                    Zona quema grasa
                   </Typography>
                   <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                    {Math.round(profile.maxBpm * 0.6)}-{Math.round(profile.maxBpm * 0.7)}
+                    {Math.round(profile.maxBpm * 0.6)}-
+                    {Math.round(profile.maxBpm * 0.7)}
                   </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    FC máx: {profile.maxBpm} bpm
+                  </Typography>
+                </Card>
+              </Grid>
+
+              {/* FC máxima teórica */}
+              <Grid item xs={6}>
+                <Card variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
+                  <Typography variant="body2" color="text.secondary">
+                    FC máx teórica
+                  </Typography>
+                  <Typography variant="h5" sx={{ fontWeight: 700 }}>
+                    {theoreticalMaxHr} bpm
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    220 - {profile.age}
+                  </Typography>
+                </Card>
+              </Grid>
+
+              {/* Metabolismo basal */}
+              <Grid item xs={6}>
+                <Card variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
+                  <Typography variant="body2" color="text.secondary">
+                    Metabolismo basal
+                  </Typography>
+                  <Typography variant="h5" sx={{ fontWeight: 700 }}>
+                    {Math.round(bmr)} kcal
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    por día
+                  </Typography>
+                </Card>
+              </Grid>
+
+              {/* Total entrenamientos */}
+              <Grid item xs={4}>
+                <Card variant="outlined" sx={{ p: 1.5, textAlign: 'center' }}>
+                  <FitnessCenter
+                    sx={{ fontSize: 24, color: 'primary.main', mb: 0.5 }}
+                  />
+                  <Typography variant="body2" color="text.secondary">
+                    Entrenamientos
+                  </Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                    {totalTrainings}
+                  </Typography>
+                </Card>
+              </Grid>
+
+              {/* Distancia total */}
+              <Grid item xs={4}>
+                <Card variant="outlined" sx={{ p: 1.5, textAlign: 'center' }}>
+                  <Straighten
+                    sx={{ fontSize: 24, color: 'primary.main', mb: 0.5 }}
+                  />
+                  <Typography variant="body2" color="text.secondary">
+                    Distancia
+                  </Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                    {totalDistance} km
+                  </Typography>
+                </Card>
+              </Grid>
+
+              {/* Racha actual */}
+              <Grid item xs={4}>
+                <Card variant="outlined" sx={{ p: 1.5, textAlign: 'center' }}>
+                  <Whatshot
+                    sx={{
+                      fontSize: 24,
+                      color: currentStreak > 0 ? '#FF9800' : 'text.disabled',
+                      mb: 0.5,
+                    }}
+                  />
+                  <Typography variant="body2" color="text.secondary">
+                    Racha
+                  </Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                    {currentStreak} días
+                  </Typography>
+                </Card>
+              </Grid>
+
+              {/* Tendencia semanal */}
+              <Grid item xs={12}>
+                <Card variant="outlined" sx={{ p: 2 }}>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1,
+                      mb: 1,
+                    }}
+                  >
+                    <DateRange sx={{ color: 'text.secondary', fontSize: 20 }} />
+                    <Typography variant="body2" color="text.secondary">
+                      Últimos 7 días
+                    </Typography>
+                  </Box>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                      {trainedLast7Days} de 7 días con actividad
+                    </Typography>
+                    <Typography
+                      variant="h6"
+                      sx={{ fontWeight: 700, color: 'primary.main' }}
+                    >
+                      {Math.round((trainedLast7Days / 7) * 100)}%
+                    </Typography>
+                  </Box>
+                  <LinearProgress
+                    variant="determinate"
+                    value={(trainedLast7Days / 7) * 100}
+                    sx={{ mt: 1, height: 6, borderRadius: 3 }}
+                  />
                 </Card>
               </Grid>
             </Grid>

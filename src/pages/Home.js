@@ -21,6 +21,7 @@ import {
   Speed,
   FitnessCenter,
   DeleteOutline,
+  LocalFireDepartment,
   CalendarToday,
   TrendingUp,
   DirectionsRun as RunIcon
@@ -37,7 +38,7 @@ const Home = () => {
   const getActivityIcon = (type) => {
     switch(type) {
       case 'caminar': return <DirectionsWalk sx={{ color: '#2E7D32' }} />;
-      case 'bici': return <DirectionsBike sx={{ color: '#1976D2' }} />;
+      case 'ciclismo': return <DirectionsBike sx={{ color: '#1976D2' }} />;
       case 'mtb': return <Terrain sx={{ color: '#8D6E63' }} />;
       default: return <DirectionsWalk />;
     }
@@ -46,7 +47,7 @@ const Home = () => {
   const getActivityColor = (type) => {
     switch(type) {
       case 'caminar': return '#E8F5E9';
-      case 'bici': return '#E3F2FD';
+      case 'ciclismo': return '#E3F2FD';
       case 'mtb': return '#EFEBE9';
       default: return '#F5F5F5';
     }
@@ -77,14 +78,25 @@ const Home = () => {
 
       {/* Resumen rápido */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={6}>
+         <Grid item xs={6}>
           <Card sx={{ bgcolor: 'primary.main', color: 'white' }}>
             <CardContent>
-              <Typography variant="body2" sx={{ opacity: 0.9 }}>Total km</Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>Distancia Total</Typography>
               <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                {trainings.reduce((acc, t) => acc + t.distance, 0).toFixed(1)}
+                {/* ✅ NUEVA LÓGICA: metros si es < 1km */}
+                {(() => {
+                  const totalDistance = trainings.reduce((acc, t) => acc + t.distance, 0);
+                  return totalDistance < 1 
+                    ? `${Math.round(totalDistance * 1000)}`
+                    : totalDistance.toFixed(1);
+                })()}
               </Typography>
-              <Typography variant="caption">kilómetros</Typography>
+              <Typography variant="caption">
+                {(() => {
+                  const totalDistance = trainings.reduce((acc, t) => acc + t.distance, 0);
+                  return totalDistance < 1 ? 'Metros' : 'Kilómetros';
+                })()}
+              </Typography>
             </CardContent>
           </Card>
         </Grid>
@@ -119,9 +131,12 @@ const Home = () => {
             borderLeft: '6px solid',
             borderLeftColor: 
               training.type === 'caminar' ? '#2E7D32' :
-              training.type === 'bici' ? '#1976D2' : '#8D6E63'
+              training.type === 'ciclismo' ? '#1976D2' :
+              training.type === 'MTB' ? '#8D6E63' :
+              '#8D6E63'
           }}
         >
+
           <CardActionArea onClick={() => navigate(`/training/${training.id}`)}>
             <CardContent>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -155,7 +170,10 @@ const Home = () => {
                 <Grid item xs={4}>
                   <Typography variant="body2" color="text.secondary">Distancia</Typography>
                   <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                    {training.distance.toFixed(1)} km
+                    {training.distance < 1 
+                    ? `${Math.round(training.distance * 1000)} m`
+                    : `${training.distance.toFixed(2)} km`
+                  }
                   </Typography>
                 </Grid>
                 <Grid item xs={4}>
@@ -181,7 +199,7 @@ const Home = () => {
                 />
                 <Chip 
                   size="small" 
-                  icon={<FitnessCenter />} 
+                  icon={<LocalFireDepartment sx={{ color: '#FF6B6B'}} />} 
                   label={`${training.calories} kcal`} 
                   variant="outlined"
                 />

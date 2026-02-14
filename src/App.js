@@ -1,11 +1,17 @@
 // App.js
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
+import { Snackbar, Alert } from '@mui/material';
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { es } from 'date-fns/locale';
+import useBackButton from './hooks/useBackButton';
+
+// Importar plugins de Capacitor
+import { SplashScreen } from '@capacitor/splash-screen';
+import { StatusBar, Style } from '@capacitor/status-bar';
 
 import Layout from './components/Layout';
 import Home from './pages/Home';
@@ -66,6 +72,22 @@ const theme = createTheme({
 });
 
 function App() {
+
+  useEffect(() => {
+    const setupNativeApp = async () => {
+      try {
+        await SplashScreen.hide();
+
+        await StatusBar.setStyle({ style: Style.Dark });
+        await StatusBar.setBackgroundColor({ color: '#FC4C02' });
+      } catch (error) {
+        console.log('Error en configuración nativa (probablemente web):', error);
+      }
+    };
+
+    setupNativeApp();
+  }, []);
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
@@ -83,6 +105,7 @@ function App() {
               </Route>
             </Routes>
           </Router>
+          
         </DataProvider>
       </LocalizationProvider>
     </ThemeProvider>

@@ -1,9 +1,19 @@
 {
   "name": "stravita-react",
-  "homepage": "https://Jjcorsino.github.io/stravita-react",
   "version": "0.1.0",
   "private": true,
+  "homepage": "./",
   "dependencies": {
+    "@capacitor/android": "^8.1.0",
+    "@capacitor/app": "^8.0.1",
+    "@capacitor/cli": "^8.1.0",
+    "@capacitor/core": "^8.1.0",
+    "@capacitor/geolocation": "^8.1.0",
+    "@capacitor/ios": "^8.1.0",
+    "@capacitor/preferences": "^8.0.1",
+    "@capacitor/share": "^8.0.1",
+    "@capacitor/splash-screen": "^8.0.1",
+    "@capacitor/status-bar": "^8.0.1",
     "@date-io/date-fns": "^3.0.0",
     "@emotion/react": "^11.11.0",
     "@emotion/styled": "^11.11.0",
@@ -12,10 +22,14 @@
     "@mui/material": "^5.15.0",
     "@mui/x-date-pickers": "^6.18.0",
     "date-fns": "^2.30.0",
+    "leaflet": "^1.9.4",
+    "pigeon-maps": "^0.22.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-leaflet": "^4.2.1",
     "react-router-dom": "^6.22.0",
-    "react-scripts": "^5.0.1"
+    "react-scripts": "^5.0.1",
+    "recharts": "^3.7.0"
   },
   "scripts": {
     "start": "react-scripts start",
@@ -23,7 +37,10 @@
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "predeploy": "npm run build",
-    "deploy": "gh-pages -d build"
+    "deploy": "gh-pages -d build",
+    "sync": "npm run build && npx cap copy",
+    "android": "npm run sync && npx cap open android",
+    "ios": "npm run sync && npx cap open ios"
   },
   "eslintConfig": {
     "extends": [
@@ -44,6 +61,8 @@
     ]
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "ajv": "^7.2.4",
     "gh-pages": "^6.3.0"
   }
 }
